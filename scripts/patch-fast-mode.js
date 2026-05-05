@@ -190,7 +190,7 @@ function main() {
     if (!fs.existsSync(assetsDir)) continue;
     for (const f of fs.readdirSync(assetsDir)) {
       if (!f.endsWith(".js")) continue;
-      if (f.startsWith("index-")) continue; // index has refs but not the gate function
+      // No longer skip index — fast_mode gate may live in any chunk
       const fp = path.join(assetsDir, f);
       const src = fs.readFileSync(fp, "utf-8");
       if (src.includes(FEATURE_STORE_KEY) && src.includes(FAST_MODE_KEY)) {

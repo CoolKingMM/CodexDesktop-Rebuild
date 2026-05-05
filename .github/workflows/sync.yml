@@ -83,7 +83,7 @@ jobs:
         run: node scripts/sync-upstream.js --force --skip-win
 
       - name: Patch
-        run: node scripts/patch-all.js unix
+        run: node scripts/patch-all.js mac-${{ matrix.arch }}
 
       - name: Build
         run: npm run build:mac-${{ matrix.arch }}
@@ -178,7 +178,7 @@ jobs:
         run: node scripts/sync-upstream.js --force --skip-win
 
       - name: Patch
-        run: node scripts/patch-all.js unix
+        run: node scripts/patch-all.js mac-${{ matrix.arch }}
 
       - name: Build
         run: npm run build:linux-${{ matrix.arch }}
