@@ -115,9 +115,75 @@ jobs:
       - name: Build Windows x64
         run: npm run build:win-x64
 
+      - name: Prepare release metadata
+        id: package
+        shell: powershell
+        env:
+          REPOSITORY: ${{ github.repository }}
+          UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $zip = Get-ChildItem -Path "out" -Filter "Codex-win-x64-*.zip" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($null -eq $zip) {
+            throw "Windows zip was not found in out/"
+          }
+
+          if ($zip.BaseName -notmatch '^Codex-win-x64-(.+)$') {
+            throw "Unexpected zip name: $($zip.Name)"
+          }
+
+          $version = $Matches[1]
+          $tag = "v$version"
+          $sha256 = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $assetUrl = "https://github.com/$env:REPOSITORY/releases/download/$tag/$($zip.Name)"
+
+          $manifest = [ordered]@{
+            version = $version
+            tag = $tag
+            assetName = $zip.Name
+            url = $assetUrl
+            sha256 = $sha256
+            size = $zip.Length
+            repository = $env:REPOSITORY
+            upstreamRepository = "Haleclipse/CodexDesktop-Rebuild"
+            upstreamSha = $env:UPSTREAM_SHA
+            generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+          }
+
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path "latest.json" -Encoding UTF8
+          "$sha256  $($zip.Name)" | Set-Content -Path "sha256.txt" -Encoding ASCII
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "asset_name=$($zip.Name)" >> $env:GITHUB_OUTPUT
+          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
         with:
           name: Codex-Windows-x64-${{ needs.sync.outputs.upstream_sha }}
           path: out/*.zip
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.package.outputs.tag }}
+          name: Codex Windows ${{ steps.package.outputs.version }}
+          body: |
+            Automated Windows rebuild for Codex ${{ steps.package.outputs.version }}.
+
+            Upstream repository: `Haleclipse/CodexDesktop-Rebuild`
+            Upstream commit: `${{ needs.sync.outputs.upstream_sha }}`
+            SHA256: `${{ steps.package.outputs.sha256 }}`
+          files: |
+            out/*.zip
+            latest.json
+            sha256.txt
+          draft: false
+          prerelease: false
+          make_latest: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
